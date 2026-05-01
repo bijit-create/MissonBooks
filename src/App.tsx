@@ -453,10 +453,10 @@ export default function App() {
     setMissionBookLoading(true);
     try {
       const { buildMissionBook } = await import("./missionBook/buildMissionBook");
-      const lessonTitle =
-        (config.learningOutcome || "").replace(/^[A-Z0-9_-]+\s*[—–-]\s*/i, "").trim() ||
-        config.learningOutcome ||
-        "Mission Book";
+      const cleanedLO = (config.learningOutcome || "")
+        .replace(/^[A-Z0-9_-]+\s*[—–-]\s*/i, "")
+        .trim();
+      const lessonTitle = cleanedLO || config.learningOutcome || "Mission Book";
       const lessonCode = `L${config.gradeLevel}`;
       const subjectShort =
         config.subject.length > 12 ? config.subject.slice(0, 12) : config.subject;

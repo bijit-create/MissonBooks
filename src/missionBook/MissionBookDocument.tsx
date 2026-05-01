@@ -51,6 +51,14 @@ function PageFrame({ gradeLevel, children, footerLabel }: {
   );
 }
 
+function shortenTitle(s: string, max = 56): string {
+  const t = (s || "").trim();
+  if (t.length <= max) return t;
+  const cut = t.slice(0, max);
+  const space = cut.lastIndexOf(" ");
+  return (space > 24 ? cut.slice(0, space) : cut).trim() + "…";
+}
+
 function Header({
   gradeLevel,
   subject,
@@ -69,27 +77,12 @@ function Header({
         <Text style={styles.headerLeftText}>{subject}</Text>
       </View>
       <View style={[styles.headerCenterPill, { backgroundColor: color }]} fixed>
-        <Text style={styles.headerCenterText}>{lessonTitle}</Text>
+        <Text style={styles.headerCenterText}>{shortenTitle(lessonTitle)}</Text>
       </View>
       <View style={[styles.headerRightPill, { backgroundColor: color }]} fixed>
         <Text style={styles.headerRightText}>{lessonCode}</Text>
       </View>
     </>
-  );
-}
-
-function CoverBody({ gradeLevel, subject, lessonTitle }: {
-  gradeLevel: string;
-  subject: string;
-  lessonTitle: string;
-}) {
-  return (
-    <View style={styles.coverBody}>
-      <Text style={styles.coverEyebrow}>Mission Book</Text>
-      <Text style={styles.coverTitle}>{lessonTitle}</Text>
-      <Text style={styles.coverMeta}>Grade {gradeLevel} • {subject}</Text>
-      <Text style={styles.coverMeta}>Practice Booklet</Text>
-    </View>
   );
 }
 
@@ -133,27 +126,6 @@ function McqOptions({ q }: { q: MissionBookQuestion }) {
   );
 }
 
-function MatchTable({ q }: { q: MissionBookQuestion }) {
-  const lefts = [q.Option_A, q.Option_B, q.Option_C, q.Option_D].filter(Boolean) as string[];
-  const rightSource = (q as any).Correct_Answer || "";
-  const rights = String(rightSource)
-    .split(/[,;\n|]/)
-    .map((s) => s.trim())
-    .filter(Boolean);
-  const rows = Math.max(lefts.length, rights.length);
-  if (rows === 0) return null;
-  return (
-    <View style={styles.matchTable}>
-      {Array.from({ length: rows }).map((_, i) => (
-        <View key={i} style={[styles.matchRow, i % 2 === 1 ? styles.matchRowAlt : {}]}>
-          <Text style={[styles.matchCell, styles.matchCellLeft]}>{lefts[i] || ""}</Text>
-          <Text style={styles.matchCell}>{rights[i] || ""}</Text>
-        </View>
-      ))}
-    </View>
-  );
-}
-
 function QuestionCard({
   q,
   gradeLevel,
@@ -164,7 +136,6 @@ function QuestionCard({
   const color = gradeColor(gradeLevel);
   const type = (q.Question_Type || "MCQ").toUpperCase();
   const isHots = type === "HOTS";
-  const isMatch = type === "MATCH";
   const isFib = type === "FIB";
   const hasImage = q.Has_Image === "Yes" && q.ImageData;
 
@@ -189,7 +160,7 @@ function QuestionCard({
           />
         </View>
       ) : null}
-      {isFib ? null : isMatch ? <MatchTable q={q} /> : <McqOptions q={q} />}
+      {isFib ? null : <McqOptions q={q} />}
     </View>
   );
 }
@@ -199,16 +170,6 @@ export default function MissionBookDocument(input: MissionBookInput) {
   const footer = `${subject} • Grade ${gradeLevel}`;
   return (
     <Document title={`Mission Book — ${lessonTitle}`}>
-      <PageFrame gradeLevel={gradeLevel} footerLabel={footer}>
-        <Header
-          gradeLevel={gradeLevel}
-          subject={subject}
-          lessonTitle={lessonTitle}
-          lessonCode={lessonCode}
-        />
-        <CoverBody gradeLevel={gradeLevel} subject={subject} lessonTitle={lessonTitle} />
-      </PageFrame>
-
       {solvedExample ? (
         <PageFrame gradeLevel={gradeLevel} footerLabel={footer}>
           <Header

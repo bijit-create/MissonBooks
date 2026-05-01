@@ -26,9 +26,9 @@ export function gradeAssetUrl(gradeLevel: string | number): string {
 
 export const styles = StyleSheet.create({
   page: {
-    paddingTop: 95,
-    paddingBottom: 40,
-    paddingHorizontal: 36,
+    paddingTop: 82,
+    paddingBottom: 32,
+    paddingHorizontal: 30,
     fontSize: 10,
     fontFamily: "Helvetica",
     color: "#1a1a1a",
@@ -93,32 +93,6 @@ export const styles = StyleSheet.create({
     textAlign: "center",
   },
 
-  coverBody: {
-    marginTop: 80,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  coverEyebrow: {
-    fontSize: 14,
-    fontFamily: "Helvetica-Bold",
-    letterSpacing: 4,
-    textTransform: "uppercase",
-    marginBottom: 8,
-  },
-  coverTitle: {
-    fontSize: 32,
-    fontFamily: "Helvetica-Bold",
-    textAlign: "center",
-    marginBottom: 24,
-    paddingHorizontal: 24,
-  },
-  coverMeta: {
-    fontSize: 14,
-    color: "#444",
-    marginBottom: 4,
-    textAlign: "center",
-  },
-
   sectionLabel: {
     fontSize: 13,
     fontFamily: "Helvetica-Bold",
@@ -144,11 +118,11 @@ export const styles = StyleSheet.create({
   },
 
   questionsHeader: {
-    fontSize: 13,
+    fontSize: 12,
     fontFamily: "Helvetica-Bold",
     letterSpacing: 1,
     textTransform: "uppercase",
-    marginBottom: 10,
+    marginBottom: 6,
   },
   qGrid: {
     flexDirection: "row",
@@ -157,92 +131,69 @@ export const styles = StyleSheet.create({
   },
   qCard: {
     width: "48.5%",
-    marginBottom: 12,
-    paddingTop: 4,
-    paddingBottom: 8,
-    paddingHorizontal: 6,
+    marginBottom: 8,
+    paddingTop: 2,
+    paddingBottom: 4,
+    paddingHorizontal: 4,
   },
   qHeader: {
     flexDirection: "row",
     alignItems: "flex-start",
-    marginBottom: 4,
-    gap: 6,
+    marginBottom: 3,
+    gap: 4,
   },
   qNumberBadge: {
-    width: 18,
-    height: 18,
-    borderRadius: 9,
+    width: 15,
+    height: 15,
+    borderRadius: 7.5,
     alignItems: "center",
     justifyContent: "center",
-    marginRight: 6,
+    marginRight: 5,
+    marginTop: 1,
   },
   qNumberText: {
-    fontSize: 9,
+    fontSize: 8,
     fontFamily: "Helvetica-Bold",
     color: "#ffffff",
   },
   qText: {
-    fontSize: 10,
-    lineHeight: 1.4,
+    fontSize: 9.5,
+    lineHeight: 1.3,
     flex: 1,
     flexWrap: "wrap",
   },
   hotsBadge: {
-    marginLeft: 4,
-    paddingHorizontal: 5,
+    marginLeft: 3,
+    paddingHorizontal: 4,
     paddingVertical: 1,
-    borderRadius: 4,
+    borderRadius: 3,
     backgroundColor: "#FFD166",
   },
   hotsBadgeText: {
-    fontSize: 8,
+    fontSize: 7,
     fontFamily: "Helvetica-Bold",
     color: "#5b3700",
   },
   qImageWrap: {
-    marginTop: 4,
-    marginBottom: 4,
+    marginTop: 2,
+    marginBottom: 2,
     alignItems: "center",
   },
   qImage: {
-    maxWidth: 140,
-    maxHeight: 100,
+    maxWidth: 130,
+    maxHeight: 90,
   },
   optGrid: {
     flexDirection: "row",
     flexWrap: "wrap",
-    marginTop: 4,
+    marginTop: 2,
   },
   optCell: {
     width: "50%",
     paddingRight: 6,
-    paddingBottom: 3,
-    fontSize: 9.5,
-    lineHeight: 1.35,
-  },
-  matchTable: {
-    borderWidth: 0.5,
-    borderColor: "#cbd5e0",
-    borderRadius: 4,
-    marginTop: 4,
-    overflow: "hidden",
-  },
-  matchRow: {
-    flexDirection: "row",
-    borderBottomWidth: 0.5,
-    borderBottomColor: "#e2e8f0",
-  },
-  matchRowAlt: {
-    backgroundColor: "#f7fafc",
-  },
-  matchCell: {
-    flex: 1,
-    padding: 4,
-    fontSize: 9.5,
-  },
-  matchCellLeft: {
-    borderRightWidth: 0.5,
-    borderRightColor: "#e2e8f0",
+    paddingBottom: 2,
+    fontSize: 9,
+    lineHeight: 1.25,
   },
 
   pageFooter: {
