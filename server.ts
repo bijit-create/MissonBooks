@@ -10,6 +10,7 @@ dotenv.config();
 
 import validateNcert from "./api/validate-ncert.js";
 import generateQuestions from "./api/generate-questions.js";
+import generateSolvedExample from "./api/generate-solved-example.js";
 import generateImage from "./api/generate-image.js";
 import editImage from "./api/edit-image.js";
 
@@ -25,6 +26,7 @@ async function startServer() {
 
   app.post("/api/validate-ncert", (req, res) => validateNcert(req, res));
   app.post("/api/generate-questions", (req, res) => generateQuestions(req, res));
+  app.post("/api/generate-solved-example", (req, res) => generateSolvedExample(req, res));
   app.post("/api/generate-image", (req, res) => generateImage(req, res));
   app.post("/api/edit-image", (req, res) => editImage(req, res));
 

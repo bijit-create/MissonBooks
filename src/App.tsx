@@ -159,6 +159,12 @@ export default function App() {
   const [uploading, setUploading] = useState(false);
   const [recreatingIndex, setRecreatingIndex] = useState<number | null>(null);
   const [showPromptIndex, setShowPromptIndex] = useState<number | null>(null);
+  const [solvedExample, setSolvedExample] = useState<{
+    problem: string;
+    explanation: string;
+    answer: string;
+  } | null>(null);
+  const [missionBookLoading, setMissionBookLoading] = useState(false);
 
   const [config, setConfig] = useState<Config>({
     learningOutcome: "",
@@ -202,6 +208,7 @@ export default function App() {
     setStep(1);
     setNcertRef("");
     setError(null);
+    setSolvedExample(null);
   };
 
   const handleAddSkill = () => {
@@ -320,6 +327,25 @@ export default function App() {
         ${config.referenceFiles.length > 0 ? "If the question is based on a diagram in the PDFs, describe that specific diagram accurately in the Image_Description and Image_Prompt." : ""}
       `;
 
+      const solvedExamplePrompt = `
+        You are an NCERT teacher. Produce ONE solved example for:
+        Grade: ${config.gradeLevel}, Subject: ${config.subject}, LO: ${config.learningOutcome}
+        Skills: ${config.skills.filter(s => s.trim()).join(", ")}.
+        NCERT Reference: ${ncertReference}.
+
+        Return JSON: { "problem": string, "explanation": string, "answer": string }.
+        - "problem" is a single-paragraph word problem at Medium difficulty.
+        - "explanation" is 3-6 short numbered steps as one string with line breaks.
+        - "answer" is the final answer in 1-2 words or a short phrase.
+      `;
+      const solvedExamplePromise = callApi<{ text: string }>(
+        "/api/generate-solved-example",
+        { prompt: solvedExamplePrompt, referenceParts }
+      ).catch((err) => {
+        console.warn("Solved example generation failed:", err);
+        return null;
+      });
+
       setStatus(`Generating questions (0/${batchSizes.length})...`);
       let completedBatches = 0;
       const batchResults = await Promise.all(
@@ -339,6 +365,22 @@ export default function App() {
       const generatedQuestions = batchResults.flat();
       generatedQuestions.forEach((q, i) => { q.Q_No = i + 1; });
       setNcertRef(ncertReference);
+
+      const solvedExampleResp = await solvedExamplePromise;
+      if (solvedExampleResp?.text) {
+        try {
+          const parsed = JSON.parse(solvedExampleResp.text);
+          if (parsed && typeof parsed.problem === "string") {
+            setSolvedExample({
+              problem: parsed.problem || "",
+              explanation: parsed.explanation || "",
+              answer: parsed.answer || "",
+            });
+          }
+        } catch (e) {
+          console.warn("Failed to parse solved example JSON:", e);
+        }
+      }
 
       setStatus("Generating images...");
       // 3. Generate Images
@@ -405,6 +447,46 @@ export default function App() {
 
     const content = await zip.generateAsync({ type: "blob" });
     saveAs(content, "ncert_worksheet.zip");
+  };
+
+  const downloadMissionBook = async () => {
+    setMissionBookLoading(true);
+    try {
+      const { buildMissionBook } = await import("./missionBook/buildMissionBook");
+      const lessonTitle =
+        (config.learningOutcome || "").replace(/^[A-Z0-9_-]+\s*[—–-]\s*/i, "").trim() ||
+        config.learningOutcome ||
+        "Mission Book";
+      const lessonCode = `L${config.gradeLevel}`;
+      const subjectShort =
+        config.subject.length > 12 ? config.subject.slice(0, 12) : config.subject;
+
+      const blob = await buildMissionBook({
+        gradeLevel: config.gradeLevel,
+        subject: subjectShort,
+        lessonTitle,
+        lessonCode,
+        solvedExample,
+        questions: questions.map(q => ({
+          Q_No: q.Q_No,
+          Question_Type: q.Question_Type,
+          Question_Text: q.Question_Text,
+          Option_A: q.Option_A,
+          Option_B: q.Option_B,
+          Option_C: q.Option_C,
+          Option_D: q.Option_D,
+          Has_Image: q.Has_Image,
+          ImageData: q.ImageData,
+          Correct_Answer: q.Correct_Answer,
+        } as any)),
+      });
+      saveAs(blob, "mission_book.pdf");
+    } catch (err: any) {
+      console.error(err);
+      setError("Failed to build Mission Book PDF: " + (err?.message || "Unknown error"));
+    } finally {
+      setMissionBookLoading(false);
+    }
   };
 
   const handleEditImage = async () => {
@@ -543,13 +625,24 @@ export default function App() {
         <div className="flex items-center gap-3">
           {step === 3 && (
             <>
-              <button 
+              <button
                 onClick={handleReset}
                 className="btn-sleek btn-sleek-outline"
               >
                 Create Another Worksheet
               </button>
-              <button 
+              <button
+                onClick={downloadMissionBook}
+                disabled={missionBookLoading}
+                className="btn-sleek btn-sleek-outline flex items-center gap-2"
+                title="Download styled Mission Book PDF"
+              >
+                {missionBookLoading
+                  ? <Loader2 className="w-4 h-4 animate-spin" />
+                  : <BookOpen className="w-4 h-4" />}
+                {missionBookLoading ? "Building..." : "Mission Book PDF"}
+              </button>
+              <button
                 onClick={downloadZip}
                 className="btn-sleek btn-sleek-primary flex items-center gap-2"
               >
