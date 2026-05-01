@@ -1,0 +1,57 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  
+  --color-primary: #4F46E5;
+  --color-primary-hover: #4338CA;
+  --color-bg: #F8FAFC;
+  --color-surface: #FFFFFF;
+  --color-text-main: #1E293B;
+  --color-text-muted: #64748B;
+  --color-border: #E2E8F0;
+  --color-easy: #22C55E;
+  --color-medium: #F59E0B;
+  --color-hard: #EF4444;
+  --color-preview-bg: #F1F5F9;
+}
+
+@layer base {
+  body {
+    @apply bg-bg text-text-main font-sans antialiased;
+  }
+}
+
+@layer components {
+  .section-title {
+    @apply text-[12px] font-semibold uppercase tracking-wider text-text-muted mb-3;
+  }
+  
+  .form-group {
+    @apply flex flex-col gap-1.5;
+  }
+  
+  .input-field {
+    @apply px-3 py-2 border border-border rounded-md text-sm outline-none transition-colors focus:border-primary;
+  }
+  
+  .btn-sleek {
+    @apply px-5 py-2.5 rounded-md text-sm font-semibold cursor-pointer transition-colors;
+  }
+  
+  .btn-sleek-primary {
+    @apply bg-primary text-white hover:bg-primary-hover;
+  }
+  
+  .btn-sleek-outline {
+    @apply bg-white border border-border text-text-main hover:bg-slate-50;
+  }
+
+  .card-sleek {
+    @apply bg-surface border border-border rounded-xl p-4 shadow-sm;
+  }
+
+  .badge-sleek {
+    @apply px-2 py-0.5 rounded-full text-[11px] font-bold uppercase;
+  }
+}
