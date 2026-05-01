@@ -41,6 +41,64 @@ async function callApi<T>(endpoint: string, body: any): Promise<T> {
   return data as T;
 }
 
+const QUESTION_BATCH_SIZE = 5;
+
+function splitBalanced(total: number, maxBatchSize: number): number[] {
+  if (total <= 0) return [];
+  const numBatches = Math.ceil(total / maxBatchSize);
+  const base = Math.floor(total / numBatches);
+  const extras = total - base * numBatches;
+  return Array.from({ length: numBatches }, (_, i) => base + (i < extras ? 1 : 0));
+}
+
+function allocateDifficulty(
+  batchSizes: number[],
+  easy: number,
+  medium: number,
+  hard: number
+): { easy: number; medium: number; hard: number }[] {
+  const flat: ("easy" | "medium" | "hard")[] = [];
+  let e = easy, m = medium, h = hard;
+  while (e + m + h > 0) {
+    if (e > 0) { flat.push("easy"); e--; }
+    if (m > 0) { flat.push("medium"); m--; }
+    if (h > 0) { flat.push("hard"); h--; }
+  }
+  const result = batchSizes.map(() => ({ easy: 0, medium: 0, hard: 0 }));
+  let cursor = 0;
+  for (let b = 0; b < batchSizes.length; b++) {
+    for (let j = 0; j < batchSizes[b]; j++) {
+      const d = flat[cursor];
+      if (d) result[b][d]++;
+      cursor++;
+    }
+  }
+  return result;
+}
+
+function distributeImages(batchSizes: number[], totalImages: number): number[] {
+  const sumBatches = batchSizes.reduce((a, b) => a + b, 0);
+  if (sumBatches === 0) return batchSizes.map(() => 0);
+  const result = new Array(batchSizes.length).fill(0);
+  const fractions: { idx: number; frac: number }[] = [];
+  let remaining = totalImages;
+  for (let i = 0; i < batchSizes.length; i++) {
+    const ideal = (batchSizes[i] / sumBatches) * totalImages;
+    const floored = Math.floor(ideal);
+    result[i] = floored;
+    remaining -= floored;
+    fractions.push({ idx: i, frac: ideal - floored });
+  }
+  fractions.sort((a, b) => b.frac - a.frac);
+  for (let i = 0; i < remaining && fractions.length > 0; i++) {
+    result[fractions[i % fractions.length].idx]++;
+  }
+  for (let i = 0; i < result.length; i++) {
+    if (result[i] > batchSizes[i]) result[i] = batchSizes[i];
+  }
+  return result;
+}
+
 interface Question {
   Q_No: number;
   Question_Type: string;
@@ -199,11 +257,24 @@ export default function App() {
         console.warn("NCERT Validation failed, proceeding with default reference:", err);
       }
 
-      setStatus("Generating questions...");
-      // 2. Generate Questions
+      // 2. Generate Questions (in parallel batches to stay under per-function timeout)
       const requiredImageCount = Math.round(config.totalQuestions * config.imagePercentage / 100);
-      const questionPrompt = `
-        You are an expert NCERT question paper setter. Generate exactly ${config.totalQuestions} questions for:
+      const batchSizes = splitBalanced(config.totalQuestions, QUESTION_BATCH_SIZE);
+      const diffPerBatch = allocateDifficulty(
+        batchSizes,
+        config.difficultySplit.easy,
+        config.difficultySplit.medium,
+        config.difficultySplit.hard
+      );
+      const imagesPerBatch = distributeImages(batchSizes, requiredImageCount);
+
+      const buildBatchPrompt = (
+        batchSize: number,
+        diff: { easy: number; medium: number; hard: number },
+        batchImageCount: number,
+        isLastBatch: boolean
+      ) => `
+        You are an expert NCERT question paper setter. Generate exactly ${batchSize} questions for:
         Grade: ${config.gradeLevel}
         Subject: ${config.subject}
         Language: ${config.language}
@@ -211,49 +282,62 @@ export default function App() {
         Target Skills: ${config.skills.join(", ")}
         Excluded Skills (CRITICAL: DO NOT CREATE QUESTIONS ON THESE): ${config.excludedSkills.join(", ")}
         NCERT Reference: ${ncertReference}
-        Difficulty Split: Easy: ${config.difficultySplit.easy}, Medium: ${config.difficultySplit.medium}, Hard: ${config.difficultySplit.hard}
-        
+        Difficulty Split: Easy: ${diff.easy}, Medium: ${diff.medium}, Hard: ${diff.hard}
+
         ${config.additionalRequirements ? `ADDITIONAL USER REQUIREMENTS: ${config.additionalRequirements}` : ""}
-        
+
         ${config.referenceFiles.length > 0 ? "CRITICAL: Use the uploaded PDFs as the primary source for question context, numerical values, and diagram types. Ensure the questions match the pedagogical style of these specific chapters." : ""}
 
-        Question Type Library to use: MCQ, FIB, MATCH, ARR. 
+        Question Type Library to use: MCQ, FIB, MATCH, ARR.
         - MCQ: Multiple Choice Question
         - FIB: Fill in the Blanks
         - MATCH: Match the Following (Properly formatted)
         - ARR: Arranging in order. THESE MUST BE FORMATTED AS MCQ. List the items or steps using Roman numerals (I, II, III, etc.) within the Question_Text. The options (Option_A to Option_D) must provide 4 different logical sequences of these numerals (e.g., "A) II, V, III, IV, I").
-        
+
         Example ARR format:
         Question_Text: "Arrange the steps in the correct logical order... (I) Step 1 (II) Step 2..."
         Option_A: "II, I, III..."
         Option_B: "I, II, III..."
         ...and so on.
-        
-        STRICT REQUIREMENT: The VERY LAST question (Q_No: ${config.totalQuestions}) MUST be a "HOTS" (Higher Order Thinking Skills) question. 
-        This HOTS question must be a combination of 2-3 of the target skills provided. Label its Question_Type as "HOTS".
-        
-        Use a diverse mix of Matching, Arranging, MCQ, and FIB. Ensure at least 4 different types.
-        
-        STRICT IMAGE REQUIREMENT: Exactly ${requiredImageCount} out of ${config.totalQuestions} questions MUST have Has_Image: "Yes". 
+
+        ${isLastBatch ? `STRICT REQUIREMENT: The VERY LAST question (Q_No: ${batchSize}) MUST be a "HOTS" (Higher Order Thinking Skills) question. This HOTS question must be a combination of 2-3 of the target skills provided. Label its Question_Type as "HOTS".` : ""}
+
+        Use a diverse mix of MCQ, FIB, MATCH, and ARR.
+
+        STRICT IMAGE REQUIREMENT: Exactly ${batchImageCount} out of ${batchSize} questions MUST have Has_Image: "Yes".
         Any question type (MCQ, FIB, MATCH, ARR, HOTS) can be an image-based question.
-        
+
+        Number these questions Q_No 1 through ${batchSize}. They will be re-numbered as part of a larger set, so DO NOT cross-reference other question numbers.
+
         Return a JSON array of objects with these fields:
         Q_No, Question_Type, Difficulty, Question_Text, Option_A, Option_B, Option_C, Option_D, Correct_Answer, Has_Image, Image_Description, Image_Prompt, Skill_Mapped, LO_Code, NCERT_Reference, Marks, Hint.
-        
+
         For Has_Image: "Yes" or "No".
-        For Image_Description: Provide a detailed, unambiguous description for an image generation system. 
+        For Image_Description: Provide a detailed, unambiguous description for an image generation system.
         For Image_Prompt: Construct a specific prompt for this image following this EXACT template:
         "Create a simple NCERT-style educational image showing [concept/topic]. Illustrate the key elements clearly, such as [main objects/process/steps], arranged in a logical and easy-to-understand layout. Ensure all important parts are properly shown. STRICTLY NO TEXT, NO LABELS, NO NUMBERS, NO LETTERS, NO WORDS, NO CAPTIONS, NO TITLES inside the image area. Use clean, simple, child-friendly visuals with proper alignment and spacing. Keep the design minimal and focused on learning. No decorations, shadows, or background objects. Keep a plain white background. Images needs to be NCERT Align as many as analyze the uploaded chapter and diagram use in then create something."
-        
+
         ${config.referenceFiles.length > 0 ? "If the question is based on a diagram in the PDFs, describe that specific diagram accurately in the Image_Description and Image_Prompt." : ""}
       `;
 
-      const questionResponse = await callApi<{ text: string }>("/api/generate-questions", {
-        prompt: questionPrompt,
-        referenceParts,
-      });
+      setStatus(`Generating questions (0/${batchSizes.length})...`);
+      let completedBatches = 0;
+      const batchResults = await Promise.all(
+        batchSizes.map(async (size, idx) => {
+          const isLastBatch = idx === batchSizes.length - 1;
+          const prompt = buildBatchPrompt(size, diffPerBatch[idx], imagesPerBatch[idx], isLastBatch);
+          const resp = await callApi<{ text: string }>("/api/generate-questions", {
+            prompt,
+            referenceParts,
+          });
+          completedBatches++;
+          setStatus(`Generating questions (${completedBatches}/${batchSizes.length})...`);
+          return JSON.parse(resp.text || "[]") as any[];
+        })
+      );
 
-      const generatedQuestions = JSON.parse(questionResponse.text || "[]");
+      const generatedQuestions = batchResults.flat();
+      generatedQuestions.forEach((q, i) => { q.Q_No = i + 1; });
       setNcertRef(ncertReference);
 
       setStatus("Generating images...");
