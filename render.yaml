@@ -5,7 +5,7 @@ services:
     repo: https://github.com/bijit-create/MissonBooks
     branch: main
     buildCommand: npm install && npm run build
-    startCommand: NODE_ENV=production node --loader tsx/esm server.ts
+    startCommand: NODE_ENV=production node --import tsx/esm server.ts
     envVars:
       - key: NODE_ENV
         value: production
