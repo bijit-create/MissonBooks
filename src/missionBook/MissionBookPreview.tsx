@@ -392,6 +392,8 @@ export default function MissionBookPreview(props: MissionBookPreviewProps) {
   const [monsterNamePos, setMonsterNamePos] = useState<{
     top: number;
     left: number;
+    width?: number;   // maxWidth override (also raises minWidth)
+    height?: number;
   } | null>(null);
 
   const nudgeMonster = (dx: number, dy: number, dsize = 0) => {
@@ -418,7 +420,24 @@ export default function MissionBookPreview(props: MissionBookPreviewProps) {
           top: layout.monsterNamePill.top,
           left: layout.monsterNamePill.left,
         };
-      return { top: cur.top + dy, left: cur.left + dx };
+      return { ...cur, top: cur.top + dy, left: cur.left + dx };
+    });
+  };
+  const nudgeMonsterNameSize = (dw: number, dh: number) => {
+    const layout = getHeaderLayout(gradeLevel);
+    setMonsterNamePos((prev) => {
+      const cur =
+        prev ?? {
+          top: layout.monsterNamePill.top,
+          left: layout.monsterNamePill.left,
+          width: layout.monsterNamePill.maxWidth,
+          height: layout.monsterNamePill.height,
+        };
+      return {
+        ...cur,
+        width: Math.max(40, Math.min(220, (cur.width ?? layout.monsterNamePill.maxWidth) + dw)),
+        height: Math.max(10, Math.min(48, (cur.height ?? layout.monsterNamePill.height) + dh)),
+      };
     });
   };
   const resetMonsterPositions = () => {
@@ -893,6 +912,8 @@ Output ONLY the JSON array, no prose.`;
               const mn = {
                 top: monsterNamePos?.top ?? headerLayout.monsterNamePill.top,
                 left: monsterNamePos?.left ?? headerLayout.monsterNamePill.left,
+                width: monsterNamePos?.width ?? headerLayout.monsterNamePill.maxWidth,
+                height: monsterNamePos?.height ?? headerLayout.monsterNamePill.height,
               };
               return (
             <div
@@ -900,19 +921,21 @@ Output ONLY the JSON array, no prose.`;
                 position: "absolute",
                 top: `${mn.top}pt`,
                 left: `${mn.left}pt`,
-                minWidth: `${headerLayout.monsterNamePill.minWidth}pt`,
-                maxWidth: `${headerLayout.monsterNamePill.maxWidth}pt`,
-                height: `${headerLayout.monsterNamePill.height}pt`,
+                minWidth: `${Math.min(headerLayout.monsterNamePill.minWidth, mn.width)}pt`,
+                maxWidth: `${mn.width}pt`,
+                height: `${mn.height}pt`,
                 padding: "0 6pt",
-                borderRadius: `${headerLayout.monsterNamePill.height / 2}pt`,
+                borderRadius: `${mn.height / 2}pt`,
                 backgroundColor: color,
                 color: "#fff",
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
                 fontSize: "9pt",
+                lineHeight: 1,
                 fontWeight: 700,
                 overflow: "hidden",
+                whiteSpace: "nowrap",
               }}
             >
               <Editable
@@ -956,6 +979,10 @@ Output ONLY the JSON array, no prose.`;
               <button onClick={() => nudgeMonsterName(2, 0)} style={nudgeBtn} title="Name right">→</button>
               <button onClick={() => nudgeMonsterName(0, -2)} style={nudgeBtn} title="Name up">↑</button>
               <button onClick={() => nudgeMonsterName(0, 2)} style={nudgeBtn} title="Name down">↓</button>
+              <button onClick={() => nudgeMonsterNameSize(4, 0)} style={nudgeBtn} title="Wider">W＋</button>
+              <button onClick={() => nudgeMonsterNameSize(-4, 0)} style={nudgeBtn} title="Narrower">W－</button>
+              <button onClick={() => nudgeMonsterNameSize(0, 2)} style={nudgeBtn} title="Taller">H＋</button>
+              <button onClick={() => nudgeMonsterNameSize(0, -2)} style={nudgeBtn} title="Shorter">H－</button>
               <span style={{ width: "1px", background: "#ddd", alignSelf: "stretch", margin: "0 2pt" }} />
               <button
                 onClick={resetMonsterPositions}

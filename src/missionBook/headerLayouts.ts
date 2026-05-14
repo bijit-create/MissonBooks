@@ -24,8 +24,9 @@ const DEFAULT: HeaderLayout = {
   // Monster: pushed further right so it lands at the visual center of the
   // template's blue decorative circle (which is offset right of the page edge).
   monsterCircle: { top: 6, left: 30, size: 70 },
-  // Name pill: tracks the monster, shifted right to match.
-  monsterNamePill: { top: 76, left: 27, minWidth: 64, maxWidth: 90, height: 14 },
+  // Name pill: taller default (18pt) so the text isn't clipped by the
+  // pill's overflow:hidden — descenders fit comfortably.
+  monsterNamePill: { top: 78, left: 27, minWidth: 64, maxWidth: 90, height: 18 },
 };
 
 const PER_GRADE: Partial<Record<number, Partial<HeaderLayout>>> = {
