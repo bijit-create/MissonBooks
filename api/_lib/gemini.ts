@@ -1,10 +1,10 @@
 import { GoogleGenAI } from "@google/genai";
-import { nextKey, keyCount } from "./keys.js";
+import { nextKey, getKeyCount } from "./keys.js";
 
 export async function withRotation<T>(
   fn: (genAI: GoogleGenAI) => Promise<T>
 ): Promise<T> {
-  const attempts = Math.max(keyCount, 1);
+  const attempts = Math.max(getKeyCount(), 1);
   let lastError: any;
   for (let i = 0; i < attempts; i++) {
     const apiKey = nextKey();

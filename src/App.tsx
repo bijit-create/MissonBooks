@@ -22,6 +22,22 @@ import {
   Copy
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
+import MissionBookPreview from './missionBook/MissionBookPreview';
+
+// Repair JSON that contains bare backslashes from stray LaTeX (\frac, \times, etc.).
+// Replaces any backslash NOT followed by a valid JSON escape char with a doubled one.
+function repairJson(s: string): string {
+  return s.replace(/\\(?!["\\/bfnrtu])/g, "\\\\");
+}
+
+function parseLooseJson<T = any>(s: string): T {
+  try {
+    return JSON.parse(s);
+  } catch (e) {
+    const repaired = repairJson(s);
+    return JSON.parse(repaired) as T;
+  }
+}
 
 async function callApi<T>(endpoint: string, body: any): Promise<T> {
   const res = await fetch(endpoint, {
@@ -119,6 +135,8 @@ interface Question {
   Marks: number;
   Hint?: string;
   ImageData?: string;
+  Layout_Hint?: "narrow" | "normal" | "wide" | "table" | "image-block";
+  Template?: string;
 }
 
 interface ReferenceFile {
@@ -165,6 +183,12 @@ export default function App() {
     answer: string;
   } | null>(null);
   const [missionBookLoading, setMissionBookLoading] = useState(false);
+  const [missionBookOpen, setMissionBookOpen] = useState(false);
+  const [monsterName, setMonsterName] = useState("");
+  const [monsterImageData, setMonsterImageData] = useState<string | null>(null);
+  const [monsterImageName, setMonsterImageName] = useState<string>("");
+  const [monsterProcessing, setMonsterProcessing] = useState(false);
+  const [missionBookFeedback, setMissionBookFeedback] = useState<string | null>(null);
 
   const [config, setConfig] = useState<Config>({
     learningOutcome: "",
@@ -311,15 +335,52 @@ export default function App() {
 
         Use a diverse mix of MCQ, FIB, MATCH, and ARR.
 
+        MATH FORMATTING:
+        - Write fractions as plain numerator/denominator: "1/2", "3/4", "11/5". A post-processor will render them as proper fractions.
+        - Write mixed fractions with a space: "2 1/5", "5 1/2".
+        - Use Unicode operators in plain text: × for multiplication, ÷ for division, ° for degrees, ² for squared.
+        - DO NOT use LaTeX commands (no \\frac, no \\times, no $) in the JSON output — they would break the JSON.
+
         STRICT IMAGE REQUIREMENT: Exactly ${batchImageCount} out of ${batchSize} questions MUST have Has_Image: "Yes".
         Any question type (MCQ, FIB, MATCH, ARR, HOTS) can be an image-based question.
 
         Number these questions Q_No 1 through ${batchSize}. They will be re-numbered as part of a larger set, so DO NOT cross-reference other question numbers.
 
         Return a JSON array of objects with these fields:
-        Q_No, Question_Type, Difficulty, Question_Text, Option_A, Option_B, Option_C, Option_D, Correct_Answer, Has_Image, Image_Description, Image_Prompt, Skill_Mapped, LO_Code, NCERT_Reference, Marks, Hint.
+        Q_No, Question_Type, Difficulty, Question_Text, Option_A, Option_B, Option_C, Option_D, Correct_Answer, Has_Image, Image_Description, Image_Prompt, Skill_Mapped, LO_Code, NCERT_Reference, Marks, Hint, Template.
 
         For Has_Image: "Yes" or "No".
+
+        For Template, pick EXACTLY ONE name from the catalog below based on the question's visual structure. The renderer dispatches on this. Pick the most specific template that fits; don't default to "mcq-text-wide" if a better match exists.
+
+          MCQ family (stem + 4 options a/b/c/d):
+            - mcq-text-narrow      : very short stem AND all options ≤ 20 chars, no image
+            - mcq-text-half        : standard MCQ, short stem, no image (most common)
+            - mcq-text-wide        : long stem or long options, no image
+            - mcq-with-figure      : MCQ that has a figure/diagram alongside the stem
+            - mcq-image-options    : the 4 OPTIONS themselves are pictures (a/b/c/d are images)
+            - mcq-true-false       : TRUE/FALSE or Yes/No selection
+          Sequence & match:
+            - arrange-sequence     : "Arrange the steps in correct order", Roman-numeral steps (I)/(II)/(III)/(IV)
+            - match-list-pair      : Match the following — Column I items pair with Column II items; student draws lines. Use this for ALL match-the-following questions.
+          Fill-in-blank family:
+            - fib-single           : one inline blank in the stem
+            - fib-multi-indent     : multiple a/b/c/d sub-blanks shown as indented text
+            - fib-multi-pill       : multiple a/b/c/d sub-questions shown as pill-shaped boxes
+          Image-driven:
+            - image-grid-identify  : "Name these..." with multiple labeled images in a grid
+            - image-with-blanks    : one big image with parts to label
+            - figure-question      : word problem with a single figure, open-ended answer
+            - figure-question-multipart : multiple labeled figures a/b/c side-by-side
+          Special:
+            - vertical-clue-list   : letter-badged clues ("A: I am ...", "B: ...", "C: ...")
+            - compare-groups       : "Group A vs Group B" comparison
+            - word-search          : stem + letter grid puzzle
+            - hots-text            : HOTS question (use this for the LAST question only)
+
+        IMPORTANT for match-the-following questions: format the stem as
+          "<lead text>. Column I (a) item1 (b) item2 (c) item3 (d) item4 Column II (i) value1 (ii) value2 (iii) value3 (iv) value4"
+        — use Column I and Column II as section headers, each item labeled with a parenthesized letter or roman, separated by spaces. Do NOT provide MCQ-style answer options (Option_A..D should be empty for match-list-pair). The student draws the match lines manually.
         For Image_Description: Provide a detailed, unambiguous description for an image generation system.
         For Image_Prompt: Construct a specific prompt for this image following this EXACT template:
         "Create a simple NCERT-style educational image showing [concept/topic]. Illustrate the key elements clearly, such as [main objects/process/steps], arranged in a logical and easy-to-understand layout. Ensure all important parts are properly shown. STRICTLY NO TEXT, NO LABELS, NO NUMBERS, NO LETTERS, NO WORDS, NO CAPTIONS, NO TITLES inside the image area. Use clean, simple, child-friendly visuals with proper alignment and spacing. Keep the design minimal and focused on learning. No decorations, shadows, or background objects. Keep a plain white background. Images needs to be NCERT Align as many as analyze the uploaded chapter and diagram use in then create something."
@@ -358,7 +419,7 @@ export default function App() {
           });
           completedBatches++;
           setStatus(`Generating questions (${completedBatches}/${batchSizes.length})...`);
-          return JSON.parse(resp.text || "[]") as any[];
+          return parseLooseJson<any[]>(resp.text || "[]");
         })
       );
 
@@ -369,7 +430,7 @@ export default function App() {
       const solvedExampleResp = await solvedExamplePromise;
       if (solvedExampleResp?.text) {
         try {
-          const parsed = JSON.parse(solvedExampleResp.text);
+          const parsed = parseLooseJson<any>(solvedExampleResp.text);
           if (parsed && typeof parsed.problem === "string") {
             setSolvedExample({
               problem: parsed.problem || "",
@@ -449,23 +510,103 @@ export default function App() {
     saveAs(content, "ncert_worksheet.zip");
   };
 
+  const handleMonsterImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!file.type.startsWith("image/")) {
+      setError("Monster image must be a PNG/JPEG file.");
+      return;
+    }
+
+    const readAsDataUrl = (f: File) =>
+      new Promise<string>((resolve, reject) => {
+        const r = new FileReader();
+        r.onload = () => resolve(r.result as string);
+        r.onerror = () => reject(new Error("Failed to read monster image."));
+        r.readAsDataURL(f);
+      });
+
+    try {
+      setMonsterProcessing(true);
+      setError(null);
+      const originalDataUrl = await readAsDataUrl(file);
+      setMonsterImageName(file.name);
+      // Show original immediately so the user has feedback while bg removal runs.
+      setMonsterImageData(originalDataUrl);
+
+      const { removeBackground } = await import("./missionBook/bgRemoval");
+      const transparentDataUrl = await removeBackground(originalDataUrl);
+      if (transparentDataUrl) {
+        setMonsterImageData(transparentDataUrl);
+      } else {
+        console.warn("Background removal returned no data; keeping original.");
+      }
+    } catch (err: any) {
+      console.warn("Monster background removal failed; keeping original:", err);
+    } finally {
+      setMonsterProcessing(false);
+    }
+  };
+
+  const countPdfPages = async (blob: Blob): Promise<number> => {
+    try {
+      const pdfjs: any = await import("pdfjs-dist");
+      try {
+        pdfjs.GlobalWorkerOptions.workerSrc = (
+          await import("pdfjs-dist/build/pdf.worker.min.mjs?url" as any)
+        ).default;
+      } catch { /* worker URL not critical for getDocument metadata */ }
+      const buf = await blob.arrayBuffer();
+      const doc = await pdfjs.getDocument({ data: buf }).promise;
+      return doc.numPages;
+    } catch (e) {
+      console.warn("Page count failed:", e);
+      return 0;
+    }
+  };
+
   const downloadMissionBook = async () => {
+    if (questions.length === 0) {
+      setError("Generate questions first.");
+      return;
+    }
+    if (questions.length < 10) {
+      setError(`Mission Book needs at least 10 questions (you have ${questions.length}). Regenerate with 10–15.`);
+      return;
+    }
+    setMissionBookFeedback(null);
+    setError(null);
+    setMissionBookOpen(true);
+  };
+
+  // legacy direct-PDF path retained for reference; not wired into the UI.
+  const _legacyDirectPdfBuild = async () => {
     setMissionBookLoading(true);
+    setMissionBookFeedback(null);
     try {
       const { buildMissionBook } = await import("./missionBook/buildMissionBook");
-      const cleanedLO = (config.learningOutcome || "")
-        .replace(/^[A-Z0-9_-]+\s*[—–-]\s*/i, "")
-        .trim();
-      const lessonTitle = cleanedLO || config.learningOutcome || "Mission Book";
+      const rawLO = (config.learningOutcome || "").trim();
+      const loPrefixMatch = rawLO.match(/^([A-Z0-9_-]+)\s*[—–-]\s*/i);
+      const loCode = loPrefixMatch ? loPrefixMatch[1] : "";
+      const cleanedLO = rawLO.replace(/^[A-Z0-9_-]+\s*[—–-]\s*/i, "").trim();
+      const lessonTitle = cleanedLO || rawLO || "Mission Book";
       const lessonCode = `L${config.gradeLevel}`;
       const subjectShort =
         config.subject.length > 12 ? config.subject.slice(0, 12) : config.subject;
 
-      const blob = await buildMissionBook({
+      const monsterOverride =
+        monsterName.trim() || monsterImageData
+          ? { name: monsterName.trim() || undefined, asset: monsterImageData || undefined }
+          : undefined;
+
+      console.log("[downloadMissionBook] questions:", questions.length, "withImages:", questions.filter(q => q.Has_Image === "Yes" && q.ImageData).length);
+      const { blob, pack } = await buildMissionBook({
         gradeLevel: config.gradeLevel,
         subject: subjectShort,
         lessonTitle,
         lessonCode,
+        loCode,
+        monsterOverride,
         solvedExample,
         questions: questions.map(q => ({
           Q_No: q.Q_No,
@@ -477,13 +618,33 @@ export default function App() {
           Option_D: q.Option_D,
           Has_Image: q.Has_Image,
           ImageData: q.ImageData,
-          Correct_Answer: q.Correct_Answer,
+          Layout_Hint: q.Layout_Hint,
         } as any)),
       });
+
+      const pages = await countPdfPages(blob);
+      const packedCount = pack.pages.length;
+      if (pack.overflow) {
+        setMissionBookFeedback(
+          `Packer overflowed: ${questions.length} questions cannot fit in 2 A4 pages. Reduce the question count or shorten content.`
+        );
+      } else if (pages > 2) {
+        setMissionBookFeedback(
+          `Generated ${pages} pages — exceeded the 2-page target (packer estimated ${packedCount}). Reduce questions.`
+        );
+      } else if (pages === 2) {
+        setMissionBookFeedback("Mission Book PDF: 2 pages ✓");
+      } else if (pages > 0) {
+        setMissionBookFeedback(`Mission Book PDF: ${pages} page${pages === 1 ? "" : "s"}.`);
+      }
       saveAs(blob, "mission_book.pdf");
     } catch (err: any) {
-      console.error(err);
-      setError("Failed to build Mission Book PDF: " + (err?.message || "Unknown error"));
+      console.error("[downloadMissionBook] ERROR:", err);
+      const detail =
+        err?.name && err?.message
+          ? `${err.name}: ${err.message}`
+          : (err?.message || "Unknown error");
+      setError("Failed to build Mission Book PDF: " + detail);
     } finally {
       setMissionBookLoading(false);
     }
@@ -631,17 +792,24 @@ export default function App() {
               >
                 Create Another Worksheet
               </button>
-              <button
-                onClick={downloadMissionBook}
-                disabled={missionBookLoading}
-                className="btn-sleek btn-sleek-outline flex items-center gap-2"
-                title="Download styled Mission Book PDF"
-              >
-                {missionBookLoading
-                  ? <Loader2 className="w-4 h-4 animate-spin" />
-                  : <BookOpen className="w-4 h-4" />}
-                {missionBookLoading ? "Building..." : "Mission Book PDF"}
-              </button>
+              <div className="flex flex-col items-end">
+                <button
+                  onClick={downloadMissionBook}
+                  disabled={missionBookLoading}
+                  className="btn-sleek btn-sleek-outline flex items-center gap-2"
+                  title="Download styled Mission Book PDF"
+                >
+                  {missionBookLoading
+                    ? <Loader2 className="w-4 h-4 animate-spin" />
+                    : <BookOpen className="w-4 h-4" />}
+                  {missionBookLoading ? "Building..." : "Mission Book PDF"}
+                </button>
+                {missionBookFeedback && (
+                  <p className={`text-[10px] mt-1 max-w-[240px] text-right ${missionBookFeedback.includes("max") ? "text-hard" : "text-text-muted"}`}>
+                    {missionBookFeedback}
+                  </p>
+                )}
+              </div>
               <button
                 onClick={downloadZip}
                 className="btn-sleek btn-sleek-primary flex items-center gap-2"
@@ -761,12 +929,13 @@ export default function App() {
                   <label className="text-[13px] font-medium">Total Questions</label>
                   <span className="text-xs font-bold text-primary">{config.totalQuestions}</span>
                 </div>
-                <input 
-                  type="range" min="5" max="30" step="1"
+                <input
+                  type="range" min="10" max="15" step="1"
                   className="w-full h-1.5 bg-border rounded-lg appearance-none cursor-pointer accent-primary"
                   value={config.totalQuestions}
                   onChange={e => setConfig({ ...config, totalQuestions: parseInt(e.target.value) })}
                 />
+                <p className="text-[10px] text-text-muted mt-1 italic">Mission Book targets 10–15 questions per book.</p>
               </div>
               <div className="form-group">
                 <div className="flex justify-between items-center">
@@ -800,6 +969,64 @@ export default function App() {
                   value={config.additionalRequirements}
                   onChange={e => setConfig({ ...config, additionalRequirements: e.target.value })}
                 />
+              </div>
+            </div>
+          </div>
+
+          <div>
+            <h3 className="section-title">Mission Book</h3>
+            <div className="space-y-4">
+              <div className="form-group">
+                <label className="text-[13px] font-medium">Monster Name</label>
+                <input
+                  className="input-field"
+                  placeholder="e.g., Muncher, Crossangle"
+                  value={monsterName}
+                  onChange={e => setMonsterName(e.target.value)}
+                />
+                <p className="text-[10px] text-text-muted mt-1 italic">Leave blank to auto-pick from LO code.</p>
+              </div>
+              <div className="form-group">
+                <label className="text-[13px] font-medium">Monster Image (PNG)</label>
+                {monsterImageData ? (
+                  <div className="p-2 bg-primary/5 border border-primary/20 rounded-lg flex items-center gap-2">
+                    <div className="w-8 h-8 rounded-full bg-white/60 flex items-center justify-center shrink-0 overflow-hidden">
+                      <img src={monsterImageData} alt="monster" className="w-8 h-8 object-contain" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <span className="text-[11px] font-medium truncate block">{monsterImageName || "uploaded.png"}</span>
+                      {monsterProcessing ? (
+                        <span className="text-[10px] text-text-muted flex items-center gap-1">
+                          <Loader2 className="w-3 h-3 animate-spin" /> Processing background…
+                        </span>
+                      ) : null}
+                    </div>
+                    <button
+                      onClick={() => { setMonsterImageData(null); setMonsterImageName(""); }}
+                      disabled={monsterProcessing}
+                      className="text-hard hover:bg-hard/10 p-1 rounded disabled:opacity-30"
+                    >
+                      <Trash2 className="w-3 h-3" />
+                    </button>
+                  </div>
+                ) : (
+                  <div className="relative">
+                    <input
+                      type="file"
+                      accept="image/png,image/jpeg"
+                      onChange={handleMonsterImageUpload}
+                      className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
+                    />
+                    <div className="input-field border-dashed flex flex-col items-center justify-center py-4 text-center gap-1">
+                      <Plus className="w-4 h-4 text-text-muted" />
+                      <span className="text-[11px] text-text-muted">Upload monster character</span>
+                    </div>
+                  </div>
+                )}
+                <p className="text-[10px] text-text-muted mt-1 italic">Square PNG with transparent background works best.</p>
+              </div>
+              <div className="text-[10px] text-text-muted bg-primary/5 border border-primary/10 rounded-lg p-2 leading-snug">
+                Mission Book targets <b>4 A4 pages</b> with <b>10–15 questions</b>. Beyond that the layout may overflow.
               </div>
             </div>
           </div>
@@ -1202,6 +1429,41 @@ export default function App() {
           </div>
         )}
       </AnimatePresence>
+
+      {missionBookOpen && (() => {
+        const rawLO = (config.learningOutcome || "").trim();
+        const loPrefixMatch = rawLO.match(/^([A-Z0-9_-]+)\s*[—–-]\s*/i);
+        const loCode = loPrefixMatch ? loPrefixMatch[1] : "";
+        const cleanedLO = rawLO.replace(/^[A-Z0-9_-]+\s*[—–-]\s*/i, "").trim();
+        const lessonTitle = cleanedLO || rawLO || "Mission Book";
+        return (
+          <MissionBookPreview
+            gradeLevel={config.gradeLevel}
+            lessonTitle={lessonTitle}
+            lessonCode={`L${config.gradeLevel}`}
+            loCode={loCode}
+            monsterName={monsterName}
+            monsterImage={monsterImageData}
+            solvedExample={solvedExample}
+            questions={questions.map(q => ({
+              Q_No: q.Q_No,
+              Question_Type: q.Question_Type,
+              Question_Text: q.Question_Text,
+              Option_A: q.Option_A,
+              Option_B: q.Option_B,
+              Option_C: q.Option_C,
+              Option_D: q.Option_D,
+              Has_Image: q.Has_Image,
+              ImageData: q.ImageData,
+              Layout_Hint: q.Layout_Hint,
+              Template: q.Template,
+            }))}
+            subject={config.subject}
+            learningOutcome={config.learningOutcome}
+            onClose={() => setMissionBookOpen(false)}
+          />
+        );
+      })()}
     </div>
   );
 }
