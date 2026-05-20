@@ -196,7 +196,7 @@ export default function App() {
     excludedSkills: [""],
     gradeLevel: "7",
     subject: "Mathematics",
-    language: "English",
+    language: "English (UK)",
     totalQuestions: 15,
     difficultySplit: {
       easy: 5,
@@ -216,7 +216,7 @@ export default function App() {
       excludedSkills: [""],
       gradeLevel: "7",
       subject: "Mathematics",
-      language: "English",
+      language: "English (UK)",
       totalQuestions: 15,
       difficultySplit: {
         easy: 5,
@@ -305,15 +305,20 @@ export default function App() {
         batchImageCount: number,
         isLastBatch: boolean
       ) => `
-        You are an expert NCERT question paper setter. Generate exactly ${batchSize} questions for:
+        You are an expert NCERT question paper setter. Generate exactly ${batchSize} NOVEL and UNIQUE questions for:
         Grade: ${config.gradeLevel}
         Subject: ${config.subject}
-        Language: ${config.language}
+        Language: ${config.language} (STRICTLY USE UK ENGLISH SPELLING, GRAMMAR, AND VOCABULARY. E.g., colour, centre, maths)
         LO: ${config.learningOutcome}
         Target Skills: ${config.skills.join(", ")}
         Excluded Skills (CRITICAL: DO NOT CREATE QUESTIONS ON THESE): ${config.excludedSkills.join(", ")}
         NCERT Reference: ${ncertReference}
         Difficulty Split: Easy: ${diff.easy}, Medium: ${diff.medium}, Hard: ${diff.hard}
+
+        CRITICAL QUALITY STANDARDS:
+        1. DO NOT repeat standard examples. Generate fresh, highly diverse scenarios and contexts for each question.
+        2. Ensure the rigor matches NCERT textbook EXERCISES and EXEMPLAR problems. Focus on conceptual understanding, application, and critical thinking rather than simple recall.
+        3. Make sure the difficulty levels accurately reflect the cognitive load expected at this grade level.
 
         ${config.additionalRequirements ? `ADDITIONAL USER REQUIREMENTS: ${config.additionalRequirements}` : ""}
 
@@ -381,9 +386,9 @@ export default function App() {
         IMPORTANT for match-the-following questions: format the stem as
           "<lead text>. Column I (a) item1 (b) item2 (c) item3 (d) item4 Column II (i) value1 (ii) value2 (iii) value3 (iv) value4"
         — use Column I and Column II as section headers, each item labeled with a parenthesized letter or roman, separated by spaces. Do NOT provide MCQ-style answer options (Option_A..D should be empty for match-list-pair). The student draws the match lines manually.
-        For Image_Description: Provide a detailed, unambiguous description for an image generation system.
+        For Image_Description: Provide a detailed, unambiguous description for an image generation system. If it is a mathematical diagram, specify exactly how many items, ticks, or jumps are needed.
         For Image_Prompt: Construct a specific prompt for this image following this EXACT template:
-        "Create a simple NCERT-style educational image showing [concept/topic]. Illustrate the key elements clearly, such as [main objects/process/steps], arranged in a logical and easy-to-understand layout. Ensure all important parts are properly shown. STRICTLY NO TEXT, NO LABELS, NO NUMBERS, NO LETTERS, NO WORDS, NO CAPTIONS, NO TITLES inside the image area. Use clean, simple, child-friendly visuals with proper alignment and spacing. Keep the design minimal and focused on learning. No decorations, shadows, or background objects. Keep a plain white background. Images needs to be NCERT Align as many as analyze the uploaded chapter and diagram use in then create something."
+        "Create a clean, precise NCERT-style educational diagram for [concept/topic]. Illustrate the key elements exactly as described: [extremely specific details: e.g., 'a number line with exactly 10 tick marks, showing exactly 4 distinct arcs where each arc spans exactly 3 tick marks']. The visual must be mathematically accurate. STRICTLY NO TEXT, NO LABELS, NO LETTERS, NO WORDS, NO CAPTIONS, NO TITLES inside the image area (numbers are allowed ONLY if essential for the math diagram like a number line, otherwise NO NUMBERS). Keep a plain white background. Use clean vector style."
 
         ${config.referenceFiles.length > 0 ? "If the question is based on a diagram in the PDFs, describe that specific diagram accurately in the Image_Description and Image_Prompt." : ""}
       `;
@@ -451,7 +456,7 @@ export default function App() {
             const imageResponse = await callApi<{ imageData: string }>("/api/generate-image", {
               prompt: q.Image_Prompt || `Vibrant, colorful educational illustration: ${q.Image_Description}.
                     STYLE: Clean flat design vector, thick outlines, solid white background.
-                    STRICT RULES: ABSOLUTELY NO TEXT. No letters, no numbers, no words, no labels, no grades, no question numbers, no marks. NO ANSWERS or solutions on the image. NO CHARACTERS (no mascots, owls, or people).`,
+                    STRICT RULES: ABSOLUTELY NO TEXT. No letters, no words, no labels, no grades, no question numbers, no marks. NO ANSWERS or solutions on the image. NO CHARACTERS (no mascots, owls, or people). (Numbers are allowed ONLY if essential for a math diagram like a number line, otherwise NO NUMBERS).`,
               imageSize: config.imageSize,
             });
             if (imageResponse.imageData) {
@@ -752,7 +757,7 @@ export default function App() {
       const imageResponse = await callApi<{ imageData: string }>("/api/generate-image", {
         prompt: q.Image_Prompt || `Vibrant, colorful educational illustration: ${q.Image_Description}.
               STYLE: Clean flat design vector, thick outlines, solid white background.
-              STRICT RULES: ABSOLUTELY NO TEXT. No letters, no numbers, no words, no labels, no grades, no question numbers, no marks. NO ANSWERS or solutions on the image. NO CHARACTERS (no mascots, owls, or people).`,
+              STRICT RULES: ABSOLUTELY NO TEXT. No letters, no words, no labels, no grades, no question numbers, no marks. NO ANSWERS or solutions on the image. NO CHARACTERS (no mascots, owls, or people). (Numbers are allowed ONLY if essential for a math diagram like a number line, otherwise NO NUMBERS).`,
         imageSize: config.imageSize,
       });
 
