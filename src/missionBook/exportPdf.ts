@@ -4,16 +4,44 @@ import jsPDF from "jspdf";
 const A4_WIDTH_PT = 595.28;
 const A4_HEIGHT_PT = 841.89;
 
-/**
- * Wait until ALL @font-face fonts have loaded so KaTeX's math fonts
- * (KaTeX_Math, KaTeX_Main, etc.) are available before html2canvas snapshots
- * the DOM. Without this, fraction bars render as crooked "T" shapes because
- * html2canvas captures with fallback fonts mid-flight.
- */
+// Browsers only fetch @font-face fonts on demand. document.fonts.ready alone
+// doesn't trigger lazy loads, so we explicitly request every KaTeX face the
+// math renderer can emit — otherwise html2canvas snapshots while KaTeX_Math /
+// KaTeX_Size* are still missing and digits get painted with fallback glyphs
+// (the "↑" artifacts seen in fractions).
+const KATEX_FONT_SPECS: string[] = [
+  '1em "KaTeX_AMS"',
+  '1em "KaTeX_Caligraphic"',
+  'bold 1em "KaTeX_Caligraphic"',
+  '1em "KaTeX_Fraktur"',
+  'bold 1em "KaTeX_Fraktur"',
+  '1em "KaTeX_Main"',
+  'bold 1em "KaTeX_Main"',
+  'italic 1em "KaTeX_Main"',
+  'bold italic 1em "KaTeX_Main"',
+  'italic 1em "KaTeX_Math"',
+  'bold italic 1em "KaTeX_Math"',
+  '1em "KaTeX_SansSerif"',
+  'bold 1em "KaTeX_SansSerif"',
+  'italic 1em "KaTeX_SansSerif"',
+  '1em "KaTeX_Script"',
+  '1em "KaTeX_Size1"',
+  '1em "KaTeX_Size2"',
+  '1em "KaTeX_Size3"',
+  '1em "KaTeX_Size4"',
+  '1em "KaTeX_Typewriter"',
+];
+
 async function waitForFonts(): Promise<void> {
   try {
     const f: any = (document as any).fonts;
-    if (f && typeof f.ready?.then === "function") {
+    if (!f) return;
+    if (typeof f.load === "function") {
+      await Promise.all(
+        KATEX_FONT_SPECS.map((spec) => f.load(spec).catch(() => undefined))
+      );
+    }
+    if (typeof f.ready?.then === "function") {
       await f.ready;
     }
   } catch {
