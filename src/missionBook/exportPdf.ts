@@ -71,6 +71,11 @@ export async function exportPagesToPdf(
       scale: 3,
       backgroundColor: "#ffffff",
       useCORS: true,
+      // Render via SVG <foreignObject> so the browser's real layout engine
+      // paints the snapshot. html2canvas's default renderer reimplements text
+      // layout and substitutes KaTeX math fonts with fallback glyphs, which
+      // is why fraction digits came out as "↑" in the PDF.
+      foreignObjectRendering: true,
       logging: false,
       windowWidth: el.scrollWidth,
       windowHeight: el.scrollHeight,
