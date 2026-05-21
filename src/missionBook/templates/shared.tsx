@@ -199,6 +199,7 @@ function QNumberRow({
       </div>
       {isHots ? (
         <div
+          data-screen-only
           title="Higher-Order Thinking Skills"
           style={{
             width: "16pt",
