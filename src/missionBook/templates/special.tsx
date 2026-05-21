@@ -1,5 +1,5 @@
 import React from "react";
-import { CardShell, Editable, Stem, getOpts } from "./shared";
+import { CardShell, Editable, EditableQuestionImage, Stem, getOpts } from "./shared";
 import MathText from "./MathText";
 import { gradeColor } from "../styles";
 import type { TemplateProps } from "./types";
@@ -162,10 +162,11 @@ export function WordSearch(p: TemplateProps) {
         </div>
         {hasImage ? (
           <div style={{ flexShrink: 0, maxWidth: "45%" }}>
-            <img
-              src={`data:image/png;base64,${p.q.ImageData}`}
-              alt={`Q${p.q.Q_No}`}
-              style={{ maxWidth: "100%", maxHeight: "180pt", objectFit: "contain" }}
+            <EditableQuestionImage
+              imageData={p.q.ImageData || ""}
+              qNo={p.q.Q_No}
+              onUpdate={p.onUpdate}
+              maxHeight="180pt"
             />
           </div>
         ) : (

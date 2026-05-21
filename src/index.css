@@ -94,4 +94,9 @@
   .mission-book-exporting [data-screen-only] {
     display: none !important;
   }
+
+  .editable-q-image:hover .image-edit-overlay {
+    opacity: 1 !important;
+    pointer-events: auto !important;
+  }
 }

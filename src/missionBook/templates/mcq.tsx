@@ -1,5 +1,5 @@
 import React from "react";
-import { CardShell, Editable, Stem, getOpts } from "./shared";
+import { CardShell, Editable, EditableQuestionImage, Stem, getOpts } from "./shared";
 import { gradeColor } from "../styles";
 import type { TemplateProps } from "./types";
 
@@ -75,10 +75,11 @@ export function McqWithFigure(p: TemplateProps) {
               justifyContent: "center",
             }}
           >
-            <img
-              src={`data:image/png;base64,${p.q.ImageData}`}
-              alt={`Q${p.q.Q_No}`}
-              style={{ maxWidth: "100%", maxHeight: "110pt", objectFit: "contain" }}
+            <EditableQuestionImage
+              imageData={p.q.ImageData || ""}
+              qNo={p.q.Q_No}
+              onUpdate={p.onUpdate}
+              maxHeight="110pt"
             />
           </div>
         ) : null}
@@ -96,10 +97,11 @@ export function McqImageOptions(p: TemplateProps) {
       <Stem q={p.q} onUpdate={p.onUpdate} />
       {hasImage ? (
         <div style={{ display: "flex", justifyContent: "center", margin: "5pt 0" }}>
-          <img
-            src={`data:image/png;base64,${p.q.ImageData}`}
-            alt={`Q${p.q.Q_No}`}
-            style={{ maxWidth: "100%", maxHeight: "160pt", objectFit: "contain" }}
+          <EditableQuestionImage
+            imageData={p.q.ImageData || ""}
+            qNo={p.q.Q_No}
+            onUpdate={p.onUpdate}
+            maxHeight="160pt"
           />
         </div>
       ) : null}
@@ -164,10 +166,11 @@ export function McqTrueFalse(p: TemplateProps) {
         </div>
         {hasImage ? (
           <div style={{ flexShrink: 0, maxWidth: "38%" }}>
-            <img
-              src={`data:image/png;base64,${p.q.ImageData}`}
-              alt={`Q${p.q.Q_No}`}
-              style={{ maxWidth: "100%", maxHeight: "110pt", objectFit: "contain" }}
+            <EditableQuestionImage
+              imageData={p.q.ImageData || ""}
+              qNo={p.q.Q_No}
+              onUpdate={p.onUpdate}
+              maxHeight="110pt"
             />
           </div>
         ) : null}

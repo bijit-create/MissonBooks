@@ -1,5 +1,5 @@
 import React from "react";
-import { CardShell, Editable, Stem } from "./shared";
+import { CardShell, EditableQuestionImage, Stem } from "./shared";
 import type { TemplateProps } from "./types";
 
 export function ImageGridIdentify(p: TemplateProps) {
@@ -12,14 +12,11 @@ export function ImageGridIdentify(p: TemplateProps) {
       <Stem q={p.q} onUpdate={p.onUpdate} />
       {hasImage ? (
         <div style={{ display: "flex", justifyContent: "center", margin: "6pt 0" }}>
-          <img
-            src={`data:image/png;base64,${p.q.ImageData}`}
-            alt={`Q${p.q.Q_No}`}
-            style={{
-              maxWidth: "100%",
-              maxHeight: "180pt",
-              objectFit: "contain",
-            }}
+          <EditableQuestionImage
+            imageData={p.q.ImageData || ""}
+            qNo={p.q.Q_No}
+            onUpdate={p.onUpdate}
+            maxHeight="180pt"
           />
         </div>
       ) : null}
@@ -48,14 +45,11 @@ export function ImageWithBlanks(p: TemplateProps) {
       <Stem q={p.q} onUpdate={p.onUpdate} />
       {hasImage ? (
         <div style={{ display: "flex", justifyContent: "center", margin: "6pt 0" }}>
-          <img
-            src={`data:image/png;base64,${p.q.ImageData}`}
-            alt={`Q${p.q.Q_No}`}
-            style={{
-              maxWidth: "100%",
-              maxHeight: "130pt",
-              objectFit: "contain",
-            }}
+          <EditableQuestionImage
+            imageData={p.q.ImageData || ""}
+            qNo={p.q.Q_No}
+            onUpdate={p.onUpdate}
+            maxHeight="130pt"
           />
         </div>
       ) : null}
@@ -80,14 +74,11 @@ export function FigureQuestion(p: TemplateProps) {
         </div>
         {hasImage ? (
           <div style={{ flexShrink: 0, maxWidth: "45%" }}>
-            <img
-              src={`data:image/png;base64,${p.q.ImageData}`}
-              alt={`Q${p.q.Q_No}`}
-              style={{
-                maxWidth: "100%",
-                maxHeight: "130pt",
-                objectFit: "contain",
-              }}
+            <EditableQuestionImage
+              imageData={p.q.ImageData || ""}
+              qNo={p.q.Q_No}
+              onUpdate={p.onUpdate}
+              maxHeight="130pt"
             />
           </div>
         ) : null}
@@ -103,14 +94,11 @@ export function FigureQuestionMultipart(p: TemplateProps) {
       <Stem q={p.q} onUpdate={p.onUpdate} />
       {hasImage ? (
         <div style={{ display: "flex", justifyContent: "center", margin: "6pt 0" }}>
-          <img
-            src={`data:image/png;base64,${p.q.ImageData}`}
-            alt={`Q${p.q.Q_No}`}
-            style={{
-              maxWidth: "100%",
-              maxHeight: "150pt",
-              objectFit: "contain",
-            }}
+          <EditableQuestionImage
+            imageData={p.q.ImageData || ""}
+            qNo={p.q.Q_No}
+            onUpdate={p.onUpdate}
+            maxHeight="150pt"
           />
         </div>
       ) : null}
