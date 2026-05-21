@@ -92,6 +92,22 @@ function allocateDifficulty(
   return result;
 }
 
+/**
+ * Round-robin allocate target skills to batches so each batch has a clear
+ * focus subset. If there are fewer skills than batches, the leftover batches
+ * fall back to the full skill list rather than being skill-less.
+ */
+function distributeSkills(skills: string[], numBatches: number): string[][] {
+  if (numBatches <= 0) return [];
+  if (skills.length === 0) return Array.from({ length: numBatches }, () => []);
+  const buckets: string[][] = Array.from({ length: numBatches }, () => []);
+  skills.forEach((s, i) => buckets[i % numBatches].push(s));
+  for (let i = 0; i < numBatches; i++) {
+    if (buckets[i].length === 0) buckets[i] = [...skills];
+  }
+  return buckets;
+}
+
 function distributeImages(batchSizes: number[], totalImages: number): number[] {
   const sumBatches = batchSizes.reduce((a, b) => a + b, 0);
   if (sumBatches === 0) return batchSizes.map(() => 0);
@@ -137,6 +153,8 @@ interface Question {
   ImageData?: string;
   Layout_Hint?: "narrow" | "normal" | "wide" | "table" | "image-block";
   Template?: string;
+  /** Internal flag — true if Skill_Mapped matches one of the target skills. */
+  __skillOk?: boolean;
 }
 
 interface ReferenceFile {
@@ -265,14 +283,23 @@ export default function App() {
         }
       }));
 
+      // Strip empty rows once, then reuse everywhere — keeps prompts clean.
+      const cleanedSkills = config.skills.map(s => s.trim()).filter(Boolean);
+      const cleanedExcludedSkills = config.excludedSkills
+        .map(s => s.trim())
+        .filter(Boolean);
+      const excludedClause = cleanedExcludedSkills.length > 0
+        ? `Excluded Skills (CRITICAL: DO NOT CREATE QUESTIONS ON THESE): ${cleanedExcludedSkills.join(", ")}`
+        : "";
+
       // 1. Validate against NCERT (Search Grounding + Reference Files)
       let ncertReference = "NCERT Alignment Confirmed";
       try {
         const validationPrompt = `
           Validate the following Learning Outcome and Skills against the NCERT curriculum for Grade ${config.gradeLevel} ${config.subject}.
           LO: ${config.learningOutcome}
-          Target Skills: ${config.skills.join(", ")}
-          Excluded Skills (DO NOT USE THESE): ${config.excludedSkills.join(", ")}
+          Target Skills: ${cleanedSkills.join(", ")}
+          ${cleanedExcludedSkills.length > 0 ? `Excluded Skills (DO NOT USE THESE): ${cleanedExcludedSkills.join(", ")}` : ""}
           ${config.referenceFiles.length > 0 ? `I have uploaded ${config.referenceFiles.length} reference chapter PDF(s). Please prioritize the content, terminology, and diagram styles found in these PDFs.` : ""}
           
           Confirm if these are accurate for the NCERT curriculum. If there are slight deviations, suggest the correct NCERT chapter and topic.
@@ -298,22 +325,30 @@ export default function App() {
         config.difficultySplit.hard
       );
       const imagesPerBatch = distributeImages(batchSizes, requiredImageCount);
+      const skillsPerBatch = distributeSkills(cleanedSkills, batchSizes.length);
 
       const buildBatchPrompt = (
         batchSize: number,
         diff: { easy: number; medium: number; hard: number },
         batchImageCount: number,
-        isLastBatch: boolean
+        isLastBatch: boolean,
+        focusSkills: string[]
       ) => `
         You are an expert NCERT question paper setter. Generate exactly ${batchSize} NOVEL and UNIQUE questions for:
         Grade: ${config.gradeLevel}
         Subject: ${config.subject}
         Language: ${config.language} (STRICTLY USE UK ENGLISH SPELLING, GRAMMAR, AND VOCABULARY. E.g., colour, centre, maths)
         LO: ${config.learningOutcome}
-        Target Skills: ${config.skills.join(", ")}
-        Excluded Skills (CRITICAL: DO NOT CREATE QUESTIONS ON THESE): ${config.excludedSkills.join(", ")}
+        Overall Target Skills (the WORKSHEET as a whole must cover all of these): ${cleanedSkills.join(", ")}
+        FOCUS SKILLS FOR THIS BATCH (every question here must primarily exercise one of these): ${focusSkills.join(", ")}
+        ${excludedClause}
         NCERT Reference: ${ncertReference}
         Difficulty Split: Easy: ${diff.easy}, Medium: ${diff.medium}, Hard: ${diff.hard}
+
+        SKILL COVERAGE:
+        - For THIS batch, every focus skill above must be exercised by at least one question (unless there are more focus skills than questions, in which case prioritise the earlier ones).
+        - Vary the contexts and scenarios so similar skills don't reuse the same setup.
+        - Set Skill_Mapped to the EXACT focus-skill string the question targets — do not invent your own skill names.
 
         CRITICAL QUALITY STANDARDS:
         1. DO NOT repeat standard examples. Generate fresh, highly diverse scenarios and contexts for each question.
@@ -417,7 +452,13 @@ export default function App() {
       const batchResults = await Promise.all(
         batchSizes.map(async (size, idx) => {
           const isLastBatch = idx === batchSizes.length - 1;
-          const prompt = buildBatchPrompt(size, diffPerBatch[idx], imagesPerBatch[idx], isLastBatch);
+          const prompt = buildBatchPrompt(
+            size,
+            diffPerBatch[idx],
+            imagesPerBatch[idx],
+            isLastBatch,
+            skillsPerBatch[idx] ?? cleanedSkills
+          );
           const resp = await callApi<{ text: string }>("/api/generate-questions", {
             prompt,
             referenceParts,
@@ -430,6 +471,33 @@ export default function App() {
 
       const generatedQuestions = batchResults.flat();
       generatedQuestions.forEach((q, i) => { q.Q_No = i + 1; });
+
+      // Validate Skill_Mapped against the target list. The LLM occasionally
+      // invents skill names that don't match anything the user asked for.
+      // We don't reject the question — just flag it so the UI can colour
+      // the skill chip and tell the user something looks off.
+      if (cleanedSkills.length > 0) {
+        const lc = (s: string) => (s || "").trim().toLowerCase();
+        const targetLc = cleanedSkills.map(lc);
+        let mismatchCount = 0;
+        generatedQuestions.forEach((q: any) => {
+          const mapped = lc(q.Skill_Mapped || "");
+          // Treat as a match if the LLM's string equals OR is contained
+          // by any target skill (and vice versa) — catches paraphrases like
+          // "Identify alternate angles" vs "Identify alternate interior angles".
+          const ok =
+            mapped.length > 0 &&
+            targetLc.some(t => t === mapped || t.includes(mapped) || mapped.includes(t));
+          q.__skillOk = ok;
+          if (!ok) mismatchCount++;
+        });
+        if (mismatchCount > 0) {
+          console.warn(
+            `[handleGenerate] ${mismatchCount}/${generatedQuestions.length} questions have a Skill_Mapped that doesn't match any target skill.`
+          );
+        }
+      }
+
       setNcertRef(ncertReference);
 
       const solvedExampleResp = await solvedExamplePromise;
@@ -1253,7 +1321,17 @@ export default function App() {
                           )}
 
                           <div className="flex gap-4 mt-4 text-[12px] text-text-muted font-medium border-t border-slate-50 pt-3">
-                            <span>Skill: {q.Skill_Mapped}</span>
+                            <span
+                              className={q.__skillOk === false ? "text-hard" : ""}
+                              title={
+                                q.__skillOk === false
+                                  ? "This skill name doesn't match any of your target skills."
+                                  : undefined
+                              }
+                            >
+                              Skill: {q.Skill_Mapped}
+                              {q.__skillOk === false ? " ⚠" : ""}
+                            </span>
                             <span>LO: {q.LO_Code}</span>
                           </div>
                         </div>
@@ -1465,6 +1543,11 @@ export default function App() {
             }))}
             subject={config.subject}
             learningOutcome={config.learningOutcome}
+            skills={config.skills.map(s => s.trim()).filter(Boolean)}
+            excludedSkills={config.excludedSkills.map(s => s.trim()).filter(Boolean)}
+            referenceParts={config.referenceFiles.map(f => ({
+              inlineData: { data: f.data, mimeType: f.mimeType },
+            }))}
             onClose={() => setMissionBookOpen(false)}
           />
         );

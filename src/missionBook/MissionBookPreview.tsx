@@ -29,6 +29,10 @@ export interface MissionBookPreviewProps {
   subject?: string;
   /** Raw learning outcome string from the config, used for regen prompts. */
   learningOutcome?: string;
+  /** Target skills (already trimmed/filtered) passed through to regen prompts. */
+  skills?: string[];
+  /** Excluded skills (already trimmed/filtered) passed through to regen prompts. */
+  excludedSkills?: string[];
   /** PDF inline-data parts forwarded to the LLM during regen. */
   referenceParts?: any[];
   onClose: () => void;
@@ -354,6 +358,8 @@ export default function MissionBookPreview(props: MissionBookPreviewProps) {
     questions,
     subject,
     learningOutcome,
+    skills,
+    excludedSkills,
     referenceParts,
     onClose,
   } = props;
@@ -661,10 +667,20 @@ export default function MissionBookPreview(props: MissionBookPreviewProps) {
 
   const buildOneShotPrompt = (qType: string): string => {
     const cleanedLO = (learningOutcome || "").trim();
+    const cleanedSkills = (skills ?? []).map(s => s.trim()).filter(Boolean);
+    const cleanedExcluded = (excludedSkills ?? []).map(s => s.trim()).filter(Boolean);
+    const skillsLine = cleanedSkills.length > 0
+      ? `Target Skills (pick one — set Skill_Mapped to the EXACT string you chose): ${cleanedSkills.join(", ")}`
+      : "";
+    const excludedLine = cleanedExcluded.length > 0
+      ? `Excluded Skills (CRITICAL: DO NOT CREATE QUESTIONS ON THESE): ${cleanedExcluded.join(", ")}`
+      : "";
     return `You are an expert NCERT question-paper setter. Generate EXACTLY 1 question.
 Grade: ${gradeLevel}
 Subject: ${subject || ""}
 Learning Outcome: ${cleanedLO}
+${skillsLine}
+${excludedLine}
 Question type: ${qType}
 
 MATH FORMATTING:
