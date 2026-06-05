@@ -683,6 +683,8 @@ ${skillsLine}
 ${excludedLine}
 Question type: ${qType}
 
+QUESTION STEM PHRASING (MANDATORY): Word the Question_Text in the classic NCERT teacher-worksheet instructional style — begin with a direct imperative matching the task: "Define ...", "Give a reason: ...", "State true or false: ...", "Fill in the blank: ..." (keep "______" inline), "Identify ...", "Answer the following: ...". Do NOT use vague openers like "Consider the following" or "Which of these".
+
 MATH FORMATTING:
 - Write fractions as plain numerator/denominator: "1/2", "3/4". A post-processor will render them.
 - Use Unicode operators in plain text: × ÷ ° ². No LaTeX commands (no \\frac, no $).

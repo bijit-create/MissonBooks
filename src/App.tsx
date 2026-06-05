@@ -345,15 +345,27 @@ export default function App() {
         NCERT Reference: ${ncertReference}
         Difficulty Split: Easy: ${diff.easy}, Medium: ${diff.medium}, Hard: ${diff.hard}
 
-        SKILL COVERAGE:
-        - For THIS batch, every focus skill above must be exercised by at least one question (unless there are more focus skills than questions, in which case prioritise the earlier ones).
+        SKILL COVERAGE (MANDATORY):
+        - EVERY focus skill listed above MUST appear as the Skill_Mapped of at least one question in this batch. No skill may be left uncovered.
+        - If there are more focus skills than questions, combine closely related skills into a single question that exercises both — but still set Skill_Mapped to the primary one and mention the secondary in a Hint.
+        - Spread questions evenly across focus skills. Do not give the majority of questions to one skill.
         - Vary the contexts and scenarios so similar skills don't reuse the same setup.
-        - Set Skill_Mapped to the EXACT focus-skill string the question targets — do not invent your own skill names.
+        - Set Skill_Mapped to the EXACT focus-skill string the question targets — copy it verbatim from the list above. Do not paraphrase or invent your own skill names.
 
         CRITICAL QUALITY STANDARDS:
         1. DO NOT repeat standard examples. Generate fresh, highly diverse scenarios and contexts for each question.
         2. Ensure the rigor matches NCERT textbook EXERCISES and EXEMPLAR problems. Focus on conceptual understanding, application, and critical thinking rather than simple recall.
         3. Make sure the difficulty levels accurately reflect the cognitive load expected at this grade level.
+        4. KEEP QUESTION STEMS SHORT AND SIMPLE. Use plain, direct language a Grade ${config.gradeLevel} student can parse in one read. Avoid wordy setups — get to the point quickly.
+
+        QUESTION STEM PHRASING (MANDATORY): Word every Question_Text in the classic NCERT teacher-worksheet instructional style. Begin the stem with a direct imperative that matches the task, e.g.:
+        - Definitions / terms: "Define ...", "Define the term ...", "What is meant by ...?"
+        - Reasoning / justification: "Give a reason: ...", "Why ...?", "Explain why ..."
+        - True/False statements: "State true or false: ..."
+        - Fill in the blanks: "Fill in the blank: ..." (keep the blank "______" inline in the stem)
+        - Identification: "Identify ...", "Name ..."
+        - Short answer: "Answer the following: ...", "What are ...?", "List ..."
+        Do NOT use vague openers like "Consider the following" or "Which of these". Phrase the stem as a teacher would write it on a worksheet.
 
         ${config.additionalRequirements ? `ADDITIONAL USER REQUIREMENTS: ${config.additionalRequirements}` : ""}
 
@@ -423,7 +435,7 @@ export default function App() {
         — use Column I and Column II as section headers, each item labeled with a parenthesized letter or roman, separated by spaces. Do NOT provide MCQ-style answer options (Option_A..D should be empty for match-list-pair). The student draws the match lines manually.
         For Image_Description: Provide a detailed, unambiguous description for an image generation system. If it is a mathematical diagram, specify exactly how many items, ticks, or jumps are needed.
         For Image_Prompt: Construct a specific prompt for this image following this EXACT template:
-        "Create a clean, precise NCERT-style educational diagram for [concept/topic]. Illustrate the key elements exactly as described: [extremely specific details: e.g., 'a number line with exactly 10 tick marks, showing exactly 4 distinct arcs where each arc spans exactly 3 tick marks']. The visual must be mathematically accurate. STRICTLY NO TEXT, NO LABELS, NO LETTERS, NO WORDS, NO CAPTIONS, NO TITLES inside the image area (numbers are allowed ONLY if essential for the math diagram like a number line, otherwise NO NUMBERS). Keep a plain white background. Use clean vector style."
+        "Create a clean, precise NCERT-style educational diagram for [concept/topic]. Illustrate the key elements exactly as described: [extremely specific details: e.g., 'a number line with exactly 10 tick marks, showing exactly 4 distinct arcs where each arc spans exactly 3 tick marks']. The visual must be mathematically accurate. Include text labels, letters, or captions ONLY when they are essential for the student to understand the diagram (e.g., vertex labels A, B, C on a geometry figure, axis labels, units). Avoid decorative or redundant text. Keep a plain white background. Use clean vector style."
 
         ${config.referenceFiles.length > 0 ? "If the question is based on a diagram in the PDFs, describe that specific diagram accurately in the Image_Description and Image_Prompt." : ""}
       `;
@@ -496,6 +508,22 @@ export default function App() {
             `[handleGenerate] ${mismatchCount}/${generatedQuestions.length} questions have a Skill_Mapped that doesn't match any target skill.`
           );
         }
+
+        // Check that every target skill got at least one question.
+        const coveredSkills = new Set(
+          generatedQuestions
+            .filter((q: any) => q.__skillOk)
+            .map((q: any) => targetLc.find(t => {
+              const m = lc(q.Skill_Mapped || "");
+              return t === m || t.includes(m) || m.includes(t);
+            }))
+            .filter(Boolean)
+        );
+        const missingSkills = cleanedSkills.filter((_, i) => !coveredSkills.has(targetLc[i]));
+        if (missingSkills.length > 0) {
+          console.warn(`[handleGenerate] Skills with NO questions: ${missingSkills.join(", ")}`);
+          setError(`Warning: These skills got no questions — ${missingSkills.join(", ")}. Consider regenerating.`);
+        }
       }
 
       setNcertRef(ncertReference);
@@ -524,7 +552,7 @@ export default function App() {
             const imageResponse = await callApi<{ imageData: string }>("/api/generate-image", {
               prompt: q.Image_Prompt || `Vibrant, colorful educational illustration: ${q.Image_Description}.
                     STYLE: Clean flat design vector, thick outlines, solid white background.
-                    STRICT RULES: ABSOLUTELY NO TEXT. No letters, no words, no labels, no grades, no question numbers, no marks. NO ANSWERS or solutions on the image. NO CHARACTERS (no mascots, owls, or people). (Numbers are allowed ONLY if essential for a math diagram like a number line, otherwise NO NUMBERS).`,
+                    Include text labels (e.g., vertex letters, axis labels, units) ONLY when essential for understanding. NO ANSWERS or solutions on the image. NO CHARACTERS (no mascots, owls, or people).`,
               imageSize: config.imageSize,
             });
             if (imageResponse.imageData) {
@@ -825,7 +853,7 @@ export default function App() {
       const imageResponse = await callApi<{ imageData: string }>("/api/generate-image", {
         prompt: q.Image_Prompt || `Vibrant, colorful educational illustration: ${q.Image_Description}.
               STYLE: Clean flat design vector, thick outlines, solid white background.
-              STRICT RULES: ABSOLUTELY NO TEXT. No letters, no words, no labels, no grades, no question numbers, no marks. NO ANSWERS or solutions on the image. NO CHARACTERS (no mascots, owls, or people). (Numbers are allowed ONLY if essential for a math diagram like a number line, otherwise NO NUMBERS).`,
+              Include text labels (e.g., vertex letters, axis labels, units) ONLY when essential for understanding. NO ANSWERS or solutions on the image. NO CHARACTERS (no mascots, owls, or people).`,
         imageSize: config.imageSize,
       });
 
